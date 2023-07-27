@@ -17,11 +17,11 @@ jobs:
         uses: docker/setup-qemu-action@v2
       - name: Set Up Docker Buildx
         uses: docker/setup-buildx-action@v2
-      - name: Log In to DockerHub
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+      # - name: Log In to DockerHub
+      #   uses: docker/login-action@v2
+      #   with:
+      #     username: ${{ secrets.DOCKER_USERNAME }}
+      #     password: ${{ secrets.DOCKER_PASSWORD }}
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v2
         with:
@@ -39,7 +39,5 @@ jobs:
             linux/arm64/v8
           push: true
           tags: |
-            ${{secrets.DOCKER_USERNAME}}/prometheus-arcadyan-exporter:latest
-            ${{secrets.DOCKER_USERNAME}}/prometheus-arcadyan-exporter:${{github.ref_name}}
             ghcr.io/${{github.repository_owner}}/prometheus-arcadyan-exporter:latest
             ghcr.io/${{github.repository_owner}}/prometheus-arcadyan-exporter:${{github.ref_name}}
