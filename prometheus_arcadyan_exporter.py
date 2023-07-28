@@ -1,25 +1,43 @@
-from prometheus_client.core import GaugeMetricFamily, InfoMetricFamily, REGISTRY
-from prometheus_client import start_http_server
-from urllib.request import urlopen
 import json
-import re
-import time
-import sys
 import logging
+import sys
+import time
+from urllib.error import URLError
+from urllib.request import urlopen
+
+from prometheus_client import start_http_server
+from prometheus_client.core import (REGISTRY, GaugeMetricFamily, InfoMetricFamily)
 
 class CustomCollector(object):
     def __init__(self, _ip_address):
         self.ip_address = _ip_address
         self.process_stats = {}
 
-    def collect(self):
+    def get_json_body(self):
         if '.' in self.ip_address:
-            stats = json.loads(urlopen(f'http://{self.ip_address}/TMI/v1/gateway?get=all').read())
+            try:
+                return urlopen(f'http://{self.ip_address}/TMI/v1/gateway?get=all').read()
+            except URLError as e:
+                logging.error('Error getting data from gateway')
+                logging.error(e)
+                return None
         else:
             with open('response.json', 'r') as file:
-                stats = json.loads(''.join(file.readlines()))
-        signal = stats['signal']
+                return ''.join(file.readlines())
 
+    def collect(self):
+        body = self.get_json_body()
+        if not body:
+            return
+        stats = json.loads(body)
+        if not stats:
+            logging.warning('not stats')
+            return
+        signal = stats.get('signal', None)
+        if not signal:
+            logging.warning('No signal data in returned body')
+            logging.warning(body)
+            return
         family = GaugeMetricFamily('gateway_uptime', 'Gateway uptime')
         value = float(stats.get('time', {}).get('upTime', 0))
         family.add_metric([], value)
@@ -32,24 +50,9 @@ class CustomCollector(object):
                 if val is not None:
                     family.add_metric([network, k], float(val))
         yield family
-        return
-
-        items =[ ('bars', 'gateway_cell_bars', 'Bars of cellular signal') ] 
-        for k in ["rsrp", "rsrq", "rssi", "sinr"]:
-            items.append((k, f'gateway_signal_{k}', f'Cellular signal {k}'))
-
-        for i in items:
-            family = GaugeMetricFamily(i[1], i[2], labels=['network'])
-            for network in ['4g', '5g']:
-                if network in signal:
-                    net_signal = signal[network]
-                    if i[0] in net_signal:
-                        value = float(net_signal[i[0]])
-                        family.add_metric([network], value)
-            yield family
 
 if __name__ == '__main__':
-    logging.basicConfig(format='%(asctime)s - %(message)s', level=logging.INFO)
+    logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
 
     try:
         url = sys.argv[1]
